@@ -2,7 +2,7 @@
     "id": "metasploit",
     "name": "Metasploit",
     "version": "1.0",
-    "repository": "",
+    "repository": "https://github.com/albericwalsh/argos-metasploit",
     "category": "Exploitation",
     "description": "Recherche et exécute des modules Metasploit en deux phases : par CVE (depuis vuln_lookup) puis par service (depuis nmap). Pour chaque CVE ou service détecté, cherche un exploit disponible dans la base MSF via msfconsole et tente de l'exécuter si auto_exploit est activé.",
     "parameters": [
