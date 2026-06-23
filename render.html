@@ -1,0 +1,240 @@
+{#
+  render.html — Argos module renderer : metasploit
+  Context variables injected by report_engine:
+    step       : dict  — the raw step data from mission result
+    step_id    : str
+    step_index : int
+    module     : dict  — parsed module.json
+#}
+{% set results = (step.get("output") or []) | tojson | fromjson %}
+{% set n_success  = results | selectattr("status", "equalto", "success")  | list | length %}
+{% set n_found    = results | selectattr("status", "equalto", "found")    | list | length %}
+{% set n_failed   = results | selectattr("status", "equalto", "failed")   | list | length %}
+{% set n_nomodule = results | selectattr("status", "equalto", "no_module")| list | length %}
+
+<div class="mod-section msf-section">
+  <div class="mod-header">
+    <div class="mod-header-left">
+      <span class="mod-icon">⚡</span>
+      <div>
+        <div class="mod-name">{{ module.name }}</div>
+        <div class="mod-meta">{{ module.category }} · {{ step_id }}</div>
+      </div>
+    </div>
+    <div class="msf-counters">
+      {% if n_success > 0 %}
+      <div class="msf-counter mc-success">
+        <span class="mc-num">{{ n_success }}</span>
+        <span class="mc-lbl">Compromis</span>
+      </div>
+      {% endif %}
+      <div class="msf-counter mc-found">
+        <span class="mc-num">{{ n_found }}</span>
+        <span class="mc-lbl">Modules trouvés</span>
+      </div>
+      <div class="msf-counter mc-failed">
+        <span class="mc-num">{{ n_failed }}</span>
+        <span class="mc-lbl">Échecs</span>
+      </div>
+      <div class="msf-counter mc-nomod">
+        <span class="mc-num">{{ n_nomodule }}</span>
+        <span class="mc-lbl">Sans module</span>
+      </div>
+    </div>
+  </div>
+
+  {% if results %}
+  <div class="table-wrap">
+    <table class="mod-table msf-table">
+      <thead>
+        <tr>
+          <th>CVE</th>
+          <th>Sévérité</th>
+          <th>Score</th>
+          <th>Produit</th>
+          <th>Module MSF</th>
+          <th>Statut</th>
+          <th>Détail</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in results | sort(attribute="score", reverse=True) %}
+        {% set has_output = r.get("output") and r["output"] | length > 0 %}
+        <tr class="msf-row {% if has_output %}has-output{% endif %}"
+            {% if has_output %}onclick="toggleOutput('{{ step_id }}-{{ loop.index }}')" style="cursor:pointer"{% endif %}>
+          <td>
+            <a class="cve-link" href="https://nvd.nist.gov/vuln/detail/{{ r.get('cve_id','') }}"
+               target="_blank" rel="noopener" onclick="event.stopPropagation()">
+              {{ r.get("cve_id", "—") }}
+            </a>
+          </td>
+          <td>
+            {% set sev = r.get("severity", "UNKNOWN") | upper %}
+            <span class="sev sev-{{ sev }}">{{ sev }}</span>
+          </td>
+          <td>
+            {% set score = r.get("score", 0) | float %}
+            <span class="msf-score {% if score >= 9 %}score-critical{% elif score >= 7 %}score-high{% elif score >= 4 %}score-med{% else %}score-low{% endif %}">
+              {{ "%.1f" | format(score) }}
+            </span>
+          </td>
+          <td class="cell-muted" style="font-size:11px">{{ r.get("product", "—") }}</td>
+          <td>
+            {% if r.get("msf_module") and r["msf_module"] != "—" %}
+            <span class="msf-module-path">{{ r["msf_module"] }}</span>
+            {% else %}
+            <span class="cell-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% set st = r.get("status", "") %}
+            <span class="msf-status msf-{{ st }}">
+              {% if st == "success"   %}✓ Compromis
+              {% elif st == "found"   %}⬡ Disponible
+              {% elif st == "failed"  %}✕ Échec
+              {% elif st == "skipped" %}– Ignoré
+              {% else %}— Sans module{% endif %}
+            </span>
+          </td>
+          <td>
+            {% if has_output %}
+            <span class="msf-chevron" id="chev-{{ step_id }}-{{ loop.index }}">▾</span>
+            {% else %}
+            <span class="cell-muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% if has_output %}
+        <tr class="msf-output-row" id="out-{{ step_id }}-{{ loop.index }}" style="display:none">
+          <td colspan="7">
+            <pre class="msf-output">{{ r["output"] }}</pre>
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if n_success > 0 %}
+  <div class="msf-alert">
+    <span class="msf-alert-icon">⚠</span>
+    <strong>{{ n_success }} hôte(s) compromis</strong> — des sessions Metasploit ont été ouvertes sur la cible.
+    Consultez les détails ci-dessus pour les modules utilisés.
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="mod-empty">Aucun résultat d'exploitation.</div>
+  {% endif %}
+</div>
+
+<style>
+  .msf-section .mod-header {
+    border-left: 3px solid {% if n_success > 0 %}#ff2020{% elif n_found > 0 %}#f5a623{% else %}var(--border){% endif %};
+  }
+
+  /* Compteurs */
+  .msf-counters { display: flex; gap: 8px; }
+  .msf-counter {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 6px 12px; border-radius: 4px; min-width: 52px;
+  }
+  .mc-success { background: rgba(255,32,32,.12);  border: 1px solid rgba(255,32,32,.3); }
+  .mc-found   { background: rgba(245,166,35,.1);  border: 1px solid rgba(245,166,35,.25); }
+  .mc-failed  { background: rgba(255,77,77,.07);  border: 1px solid rgba(255,77,77,.2); }
+  .mc-nomod   { background: rgba(255,255,255,.03); border: 1px solid var(--border); }
+  .mc-num { font-family: var(--font-mono); font-size: 18px; font-weight: 700; line-height: 1; }
+  .mc-lbl { font-family: var(--font-mono); font-size: 9px; color: var(--muted); text-transform: uppercase; margin-top: 2px; }
+  .mc-success .mc-num { color: #ff2020; }
+  .mc-found   .mc-num { color: #f5a623; }
+  .mc-failed  .mc-num { color: #ff4d4d; }
+  .mc-nomod   .mc-num { color: var(--muted); }
+
+  /* Table */
+  .msf-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .msf-table th {
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); padding: 8px 12px;
+    text-align: left; background: var(--surface2, #1c1c20);
+    border-bottom: 1px solid var(--border);
+  }
+  .msf-table td { padding: 9px 12px; border-bottom: 1px solid rgba(42,42,46,.5); vertical-align: middle; }
+  .msf-table tr:last-child td { border-bottom: none; }
+  .msf-row.has-output:hover td { background: rgba(245,166,35,.03); }
+
+  .cve-link {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+    color: var(--text); text-decoration: none;
+  }
+  .cve-link:hover { color: var(--accent); text-decoration: underline; }
+
+  /* Sévérité (réutilise les classes vuln_lookup) */
+  .sev { display: inline-block; padding: 2px 7px; border-radius: 3px;
+    font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em; }
+  .sev-CRITICAL { background: rgba(255,32,32,.15);  color: #ff2020; border: 1px solid rgba(255,32,32,.3); }
+  .sev-HIGH     { background: rgba(255,77,77,.15);   color: #ff4d4d; border: 1px solid rgba(255,77,77,.3); }
+  .sev-MEDIUM   { background: rgba(245,166,35,.12);  color: #f5a623; border: 1px solid rgba(245,166,35,.3); }
+  .sev-LOW      { background: rgba(77,200,255,.1);   color: #4dc8ff; border: 1px solid rgba(77,200,255,.25); }
+
+  /* Score */
+  .msf-score { font-family: var(--font-mono); font-size: 12px; font-weight: 700; }
+  .score-critical { color: #ff2020; }
+  .score-high     { color: #ff4d4d; }
+  .score-med      { color: #f5a623; }
+  .score-low      { color: #4dc8ff; }
+
+  /* Module path */
+  .msf-module-path {
+    font-family: var(--font-mono); font-size: 10px; color: var(--accent);
+    word-break: break-all;
+  }
+
+  /* Statuts */
+  .msf-status { font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+    padding: 2px 7px; border-radius: 3px; white-space: nowrap; }
+  .msf-success  { background: rgba(255,32,32,.15);  color: #ff2020; border: 1px solid rgba(255,32,32,.3); }
+  .msf-found    { background: rgba(245,166,35,.1);  color: #f5a623; border: 1px solid rgba(245,166,35,.25); }
+  .msf-failed   { background: rgba(255,77,77,.07);  color: #ff4d4d; border: 1px solid rgba(255,77,77,.2); }
+  .msf-skipped  { background: rgba(255,255,255,.04); color: var(--muted); border: 1px solid var(--border); }
+  .msf-no_module { background: rgba(255,255,255,.03); color: var(--muted); border: 1px solid var(--border); }
+
+  /* Output console */
+  .msf-chevron { color: var(--accent); font-size: 11px; transition: transform .15s; display: inline-block; }
+  .msf-chevron.open { transform: rotate(180deg); }
+  .msf-output-row td { padding: 0; }
+  .msf-output {
+    font-family: var(--font-mono); font-size: 10px; color: var(--muted);
+    background: #080809; padding: 12px 16px;
+    white-space: pre-wrap; word-break: break-all;
+    margin: 0; line-height: 1.6; border-top: 1px solid var(--border);
+    max-height: 280px; overflow-y: auto;
+  }
+
+  /* Alerte compromis */
+  .msf-alert {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px;
+    background: rgba(255,32,32,.08);
+    border: 1px solid rgba(255,32,32,.3);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    font-size: 12px; color: #ff6060;
+    font-family: var(--font-mono);
+  }
+  .msf-alert-icon { font-size: 16px; flex-shrink: 0; }
+
+  .cell-muted { color: var(--muted); font-size: 11px; }
+</style>
+
+<script>
+function toggleOutput(key) {
+  const row  = document.getElementById('out-'  + key);
+  const chev = document.getElementById('chev-' + key);
+  if (!row) return;
+  const open = row.style.display !== 'none';
+  row.style.display = open ? 'none' : 'table-row';
+  if (chev) chev.classList.toggle('open', !open);
+}
+</script>

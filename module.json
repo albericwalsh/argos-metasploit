@@ -1,0 +1,39 @@
+{
+    "id": "metasploit",
+    "name": "Metasploit",
+    "version": "1.0",
+    "repository": "",
+    "category": "Exploitation",
+    "description": "Recherche et exécute des modules Metasploit en deux phases : par CVE (depuis vuln_lookup) puis par service (depuis nmap). Pour chaque CVE ou service détecté, cherche un exploit disponible dans la base MSF via msfconsole et tente de l'exécuter si auto_exploit est activé.",
+    "parameters": [
+        {
+            "name": "target",
+            "type": "string",
+            "description": "Adresse IP ou domaine de la cible."
+        },
+        {
+            "name": "vulnerabilities",
+            "type": "list",
+            "description": "Liste de Vulnerability objects issus du module vuln_lookup."
+        },
+        {
+            "name": "nmap_services",
+            "type": "list",
+            "description": "Liste de Service objects issus du module nmap (phase 2 : recherche par service)."
+        },
+        {
+            "name": "auto_exploit",
+            "type": "boolean",
+            "description": "Si True, tente d'exécuter les exploits trouvés. Si False, liste seulement les modules disponibles (défaut: False)."
+        },
+        {
+            "name": "max_exploits",
+            "type": "string",
+            "description": "Nombre maximum d'exploits à tenter toutes phases confondues (défaut: 3)."
+        }
+    ],
+    "output": {
+        "type": "array",
+        "description": "Liste de résultats : source (cve/service), module MSF, CVE ou service associé, statut (found/success/failed/no_module), output console."
+    }
+}
